@@ -2,6 +2,13 @@ import numpy as np
 import os
 from PIL import Image
 import cv2
+
+class Before:
+    def __init__(self,before,node,distance):
+        self.before = before
+        self.node = node
+        self.distance = distance
+
 class Node:
     def __init__(self, prop, bbx, N=10):
         self.N = N
@@ -10,7 +17,6 @@ class Node:
         self.alpha = self.get_alpha()
         self.theta = self.get_theta()
         self.befores = []
-        self.distances = np.zeros(self.N)
 
     def get_alpha(self):
         return (self.x2 - self.x1) / (self.bx2 - self.bx1), (self.y2 - self.y1) / (self.by2 - self.by1)
@@ -21,11 +27,19 @@ class Node:
     def count_distance(self, other):
         return abs(self.alpha[1] / other.alpha[1]) * abs(self.theta[1] - other.theta[1]) +abs(self.alpha[0] / other.alpha[0]) * abs(self.theta[0] - other.theta[0])
 
-    def initialize(self):
-        for i in range(0, self.N):
-            self.befores.append(None)
-            self.distances[i] = np.inf
+    def add_befores(self,new_before):
+        if len(self.befores) < self.N:
+            # 如果列表长度小于N，直接添加
+            self.befores.append(new_before)
+        else:
+            # 找到列表中最大的元素
+            max_before = max(self.befores, key=lambda x: x.distance)
 
+            # 判断是否需要替换
+            if new_before.distance < max_before.distance:
+                # 替换最大的元素
+                index_of_max = self.befores.index(max_before)
+                self.befores[index_of_max] = new_before
 def dynamic_program(frames_size, bbxs, ratio, N=10):
     """
     Args
@@ -41,7 +55,6 @@ def dynamic_program(frames_size, bbxs, ratio, N=10):
     length = len(bbxs)
     for i in range(0, length):
         choice = choices[i]
-        # print(i,len(choice))
         lst = []  # lst对应每一帧的可选node
         for prop in choice:
             lst.append(Node(prop, bbxs[i], N))
@@ -49,45 +62,44 @@ def dynamic_program(frames_size, bbxs, ratio, N=10):
 
     for i in range(1, length):
         for node_j in nodes[i]:
-            node_j.initialize()
-            for node_k in nodes[i - 1]:
-                for idx_j in range(0, min(N,len(nodes[i-1]))):
-                    if i == 1:
-                        idx_k = 1
-                        if node_k.distances[idx_k] + node_j.count_distance(node_k) < node_j.distances[idx_j]:
-                            node_j.distances[idx_j] = node_k.distances[idx_k] + node_j.count_distance(node_k)
-                            node_j.befores[idx_j] = (node_k, idx_k)
-                    else:
-                        for idx_k in range(0, min(N,len(nodes[i-2]))):
-                            if node_k.distances[idx_k] + node_j.count_distance(node_k) < node_j.distances[idx_j]:
-                                node_j.distances[idx_j] = node_k.distances[idx_k] + node_j.count_distance(node_k)
-                                node_j.befores[idx_j] = (node_k, idx_k)
+            for node_k in nodes[i - 1]: # 前一帧的每个node
+                if i == 1: # 如果i==1，那么node_k不会有前向节点,distance均为0
+                    if len(node_k.befores) == 0:
+                        node_k.befores.append(Before(None,node_k,0))
+                    node_j.add_befores(Before(node_k.befores[0],node_j,node_j.count_distance(node_k)))
+                else: # node_k有若干个前向节点，distance可能不同
+                    for before in node_k.befores:
+                        node_j.add_befores(Before(before,node_j,node_j.count_distance(node_k)+before.distance))
 
-    find_node = []
+    # 在最后一帧的若干个node中，找出N个最小的before(可能不到N个)
+    find_before_list = []
     for node in nodes[-1]:
-        for i in range(min(N,len(nodes[-2]))):
-            if len(find_node) < N:
-                find_node.append((node,node.distances[i],i))
+        for before in node.befores:
+            if len(find_before_list) < N:
+                find_before_list.append(before)
             else:
-                for j in range(N):
-                    if node.distances[i] < find_node[j][1]:
-                        find_node[j] = (node,node.distances[i],i)
-                        break
+                max_before = max(find_before_list,key=lambda x:x.distance)
+                if before.distance < max_before.distance:
+                    index_of_max = find_before_list.index(max_before)
+                    find_before_list[index_of_max] = before
+
+    # 根据before，保存bbx和scores
     rets = []
-    for i in range(0,len(find_node)):
+    for find_before in find_before_list:
         ret = []
         score = []
-        end_node,end_dis,end_idx = find_node[i]
-        cur_dis = end_dis
+        cur = find_before
+        cur_node = cur.node
+        cur_dis = cur.distance
         while True:
-            ret.insert(0, (end_node.x1, end_node.y1, end_node.x2, end_node.y2))
-            if len(end_node.befores) == 0:
+            ret.insert(0, (cur_node.x1, cur_node.y1, cur_node.x2, cur_node.y2))
+            if cur.before is None:
                 break
             else:
-                end_node,end_idx = end_node.befores[end_idx]
-                end_dis = end_node.distances[end_idx]
-                score.insert(0,cur_dis-end_dis)
-                cur_dis = end_dis
+                cur = cur.before
+                cur_node = cur.node
+                score.insert(0,cur_dis-cur.distance)
+                cur_dis = cur.distance
 
         rets.append((ret,score))
     return rets
@@ -356,13 +368,13 @@ def original_images_to_video(images, output_video_path, fps=30):
 
     video_writer.release()
 
-def images_to_video(images, crop_rectangles, output_video_path):
+def images_to_video(images, crop_rectangles, output_video_path,fps=30):
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 
     # Get the size of the first image
     video_width, video_height = images[0].size
 
-    video_writer = cv2.VideoWriter(output_video_path, fourcc, 30, (video_width, video_height))
+    video_writer = cv2.VideoWriter(output_video_path, fourcc, fps, (video_width, video_height))
 
     for i in range(len(images)):
         image = np.array(images[i])
