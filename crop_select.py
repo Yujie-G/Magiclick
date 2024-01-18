@@ -1,6 +1,6 @@
-'''
+"""
 本文件用于裁切视频，并选择一个评分最高的
-'''
+"""
 
 from dynamic_crop import *
 from neural_image_assessment.evaluate_mobilenet import *
@@ -16,13 +16,13 @@ switchers = [(1, 1), (3, 4), (4, 3), (2, 3), (3, 2), (16, 9), (9, 16)]
 
 
 def generate_video_from_images(images_path, output_path, fps=30):
-    '''
+    """
     本函数用于根据文件夹下的图片生成视频
     Paramaters:
         images_path: 图片文件夹路径
         output_path: 视频输出路径
         fps: 帧率
-    '''
+    """
     folder_path = images_path
     image_files = glob.glob(f"{folder_path}/*.jpg") + glob.glob(f"{folder_path}/*.png")
 
@@ -44,10 +44,8 @@ def generate_video_from_images(images_path, output_path, fps=30):
     return output_path
 
 
-
 def crop_select(ori_images_path, output_crop_path, bbx_path, model_path, video_path):
-
-    '''
+    """
     本函数用于对裁切好的图片进行评分
 
     Paramaters:
@@ -59,7 +57,7 @@ def crop_select(ori_images_path, output_crop_path, bbx_path, model_path, video_p
 
     Return:
         video_output_path: 输出视频的路径
-    '''
+    """
 
     score_dict = {}
     crop_image_dict = {}
@@ -82,25 +80,26 @@ def crop_select(ori_images_path, output_crop_path, bbx_path, model_path, video_p
 
     # 首先清空保存裁切好图片的文件夹
     clear_folder(output_crop_path)
-    
+    clear_folder(video_path)
+
     for switch in switchers:
         images = read_images(ori_images_path)
         bbxs = read_txt_file(bbx_path)
         frame_size = images[0].size
         switch_name = f"{switch[0]}_{switch[1]}"
         try:
-            rets = dynamic_program(frame_size,bbxs,switch, N=5)
+            rets = dynamic_program(frame_size, bbxs, switch, N=5)
         except TypeError:
             continue
-        
+
         is_crop = True
         crop_image_dict[switch_name] = images
-        crop_region,scores = rets[0]
+        crop_region, scores = rets[0]
         # 输出裁切好的图片与差分数组
         output_crop(images, output_crop_path, crop_region, scores, switch)
         crop_region_dict[switch_name] = crop_region
 
-    if(is_crop == False):
+    if is_crop == False:
         raise Exception("NO CROP")
     res = evaluate(output_crop_path, model_path)
 
@@ -108,22 +107,18 @@ def crop_select(ori_images_path, output_crop_path, bbx_path, model_path, video_p
     score_dict.update(res)
     print(crop_image_dict.keys())
     print(crop_region_dict.keys())
-    # 找到最大值对应的键
-    max_key = max(score_dict, key=score_dict.get)
 
-    # 最佳切割图片集路径
-    max_crop_path = output_crop_path + f"/{max_key}"
-    # 输出视频路径
-    video_output_path = video_path + f"{max_key}.mp4"
+    for key in crop_image_dict.keys():
+        # 输出视频路径
+        video_output_path = video_path + f"/{key}.mp4"
+        crop_image_path = f"crop_images_output/{key}"
 
-    # 生成视频
-    generate_video_from_images(max_crop_path, video_output_path)
+        # 生成视频
+        generate_video_from_images(crop_image_path, video_output_path)
 
     return video_output_path, score_dict
 
     # images_to_video(crop_image_dict[max_key], crop_region_dict[max_key], output_path)
-
-
 
 
 if __name__ == "__main__":
@@ -133,7 +128,9 @@ if __name__ == "__main__":
     model_path = "neural_image_assessment/weights/mobilenet_weights.h5"
     video_path = "result/track"
 
-    path, score_dict = crop_select(images_path, output_crop_path, bbx_path, model_path, video_path)
+    path, score_dict = crop_select(
+        images_path, output_crop_path, bbx_path, model_path, video_path
+    )
 
     # 使用sorted函数对字典的items进行排序，按值从大到小排序
     sorted_items = sorted(score_dict.items(), key=lambda x: x[1], reverse=True)
@@ -145,6 +142,3 @@ if __name__ == "__main__":
     print(score_dict)
 
     print(path)
-
-
-
