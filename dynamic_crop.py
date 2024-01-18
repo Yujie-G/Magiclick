@@ -444,8 +444,12 @@ def output_crop(images, output_path, crop_rectangles, scores, ratio):
             # If no crop_rectangle is available, use the entire image
             crop_image = image
 
-        resized_image = cv2.resize(crop_image, (video_width, video_height))
+        # resized_image = cv2.resize(crop_image, (video_width, video_height))
         # Convert to BGR format (OpenCV's video encoding requires BGR format)
+        if i == 0:
+            print(f"Video {ratio} shape is", crop_image.shape)
+            video_height, video_width = crop_image.shape[0], crop_image.shape[1]
+        resized_image = cv2.resize(crop_image, (video_width, video_height))
         resized_image = cv2.cvtColor(resized_image, cv2.COLOR_RGB2BGR)
         cv2.imwrite(dir_name + "{:04d}.jpg".format(i), resized_image)
 
