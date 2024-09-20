@@ -1,5 +1,8 @@
 # Magiclick
 
+[[paper]](http://yujie-g.github.io/files/MAGICLICK-A-Video-Cropping-System.pdf) |
+[[code]](https://github.com/Yujie-G/Magiclick)
+
 ## Introduction
 With the widespread popularity of smart mobile devices, mobile video recording has become an important means for us to capture the wonderful moments of life. However, these beautiful moments are fleeting, and users often do not have enough time to compose their shots thoughtfully. Additionally, most people lack the skills and awareness for post-processing, resulting in many processed video works lacking basic aesthetic value, often leading to disappointing results. In view of this, a simple and fast interactive platform can quickly and accurately meet user needs. MAGICROP (Wang et al., 2023) has already made significant contributions in the area of image cropping. However, there is currently no effective cropping algorithm for video input. Treating video frames as independent images may lead to unclear semantic expression. In this project, we propose a new model, MAGICLICK, which allows users to select prominent themes and provides options for users to choose cropping ratios, or the model can decide automatically, through an appropriate segmentation model. We have adopted an innovative cropping method based on dynamic programming, combining the importance sampling of video frames from different cropping results, and using the Neural Image Assessment (NIMA) model (Talebi et al., 2018) for aesthetic evaluation, allowing users to easily choose their desired cropped video.
 
